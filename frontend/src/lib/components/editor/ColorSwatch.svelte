@@ -9,7 +9,7 @@
         contrastRatio,
         contrastLevel,
     } from '$lib/utils/color';
-    import {setEyedropperActive} from '$lib/stores/ui.svelte';
+    import {setEyedropperActive, getColorDrag, setColorDrag} from '$lib/stores/ui.svelte';
     import {onActivate} from '$lib/utils/keyboard';
     import LockIcon from '$lib/components/shared/LockIcon.svelte';
     import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
@@ -99,6 +99,10 @@
     }
 
     function handleClick(event: MouseEvent) {
+        if (didDrag) {
+            didDrag = false;
+            return;
+        }
         if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
             copyColor(color);
@@ -113,6 +117,47 @@
     }
 
     let light = $derived(isLightColor(color));
+
+    let isDragging = $state(false);
+    let didDrag = $state(false);
+    let pendingDrag: {startX: number; startY: number} | null = null;
+
+    function onMouseDown(e: MouseEvent) {
+        if (e.button !== 0) return;
+        pendingDrag = {startX: e.clientX, startY: e.clientY};
+        window.addEventListener('mousemove', onDragMove);
+        window.addEventListener('mouseup', onDragUp);
+    }
+
+    function onDragMove(e: MouseEvent) {
+        if (isDragging) {
+            setColorDrag({color, x: e.clientX, y: e.clientY});
+            return;
+        }
+        if (!pendingDrag) return;
+        const dx = e.clientX - pendingDrag.startX;
+        const dy = e.clientY - pendingDrag.startY;
+        if (Math.hypot(dx, dy) >= 4) {
+            didDrag = true;
+            isDragging = true;
+            setColorDrag({color, x: e.clientX, y: e.clientY});
+        }
+    }
+
+    function onDragUp() {
+        window.removeEventListener('mousemove', onDragMove);
+        window.removeEventListener('mouseup', onDragUp);
+        pendingDrag = null;
+        isDragging = false;
+        setColorDrag(null);
+    }
+
+    $effect(() => {
+        return () => {
+            window.removeEventListener('mousemove', onDragMove);
+            window.removeEventListener('mouseup', onDragUp);
+        };
+    });
 </script>
 
 <!-- Keyboard handling lives on the parent ColorPaletteGrid (roving tabindex). -->
@@ -123,12 +168,14 @@
         ? 'border-border cursor-default'
         : selected
           ? 'border-accent cursor-pointer border-2'
-          : 'hover:border-accent border-border cursor-pointer hover:z-10 hover:scale-[1.04] hover:shadow-lg'}"
+          : 'hover:border-accent border-border cursor-pointer hover:z-10 hover:scale-[1.04] hover:shadow-lg'}
+    {isDragging ? 'opacity-60' : ''}"
     style:background-color={color}
     role="button"
     tabindex={focused ? 0 : -1}
     data-swatch-idx={index}
     onclick={handleClick}
+    onmousedown={onMouseDown}
     oncontextmenu={handleContextMenu}
     title={`${label}${role ? ` · ${role}` : ''}\n${color}${
         showBadge ? `\nContrast vs BG: ${ratio.toFixed(2)}:1 (${level})` : ''
