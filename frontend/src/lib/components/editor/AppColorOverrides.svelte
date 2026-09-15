@@ -8,7 +8,11 @@
         removeAppOverride,
         setAppOverride,
     } from '$lib/stores/theme.svelte';
-    import {openOverrideColorPicker, getColorDrag, setColorDrag} from '$lib/stores/ui.svelte';
+    import {
+        openOverrideColorPicker,
+        getColorDrag,
+        setColorDrag,
+    } from '$lib/stores/ui.svelte';
     import {isLightColor, copyColor} from '$lib/utils/color';
     import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
     import ExpandableSection from '$lib/components/shared/ExpandableSection.svelte';
@@ -124,11 +128,11 @@
         if (getColorDrag()) dragOverRole = role;
     }
 
-    function onButtonMouseUp(role: string) {
+    function onButtonMouseUp(e: MouseEvent, role: string) {
         const drag = getColorDrag();
-        if (!drag) return;
+        if (!drag || e.button !== 0) return;
         setColorDrag(null);
-        setAppOverride(selectedApp, role, drag.color);
+        setAppOverride(selectedApp, role, drag.color, true);
         dragOverRole = '';
     }
 
@@ -227,7 +231,7 @@
                             {isOverridden
                                 ? 'border-accent border-2'
                                 : dragOverRole === role
-                                  ? 'border-accent border-2 scale-[1.06] shadow-md'
+                                  ? 'border-accent scale-[1.06] border-2 shadow-md'
                                   : 'border-border hover:border-border-focus'}"
                             style:background-color={display}
                             onclick={() =>
@@ -235,7 +239,7 @@
                             oncontextmenu={e => openMenu(e, role)}
                             onmouseenter={() => onButtonMouseEnter(role)}
                             onmouseleave={() => (dragOverRole = '')}
-                            onmouseup={() => onButtonMouseUp(role)}
+                            onmouseup={e => onButtonMouseUp(e, role)}
                             title="{role}{isOverridden
                                 ? ` · override ${appOverrides[role]}`
                                 : ` · computed ${display}`}\nClick edit · Right-click for menu · Drag palette color to override"

@@ -9,7 +9,7 @@
         contrastRatio,
         contrastLevel,
     } from '$lib/utils/color';
-    import {setEyedropperActive, getColorDrag, setColorDrag} from '$lib/stores/ui.svelte';
+    import {setEyedropperActive, setColorDrag} from '$lib/stores/ui.svelte';
     import {onActivate} from '$lib/utils/keyboard';
     import LockIcon from '$lib/components/shared/LockIcon.svelte';
     import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
@@ -120,43 +120,78 @@
 
     let isDragging = $state(false);
     let didDrag = $state(false);
-    let pendingDrag: {startX: number; startY: number} | null = null;
+    let pendingDrag: {startX: number; startY: number; color: string} | null =
+        null;
 
     function onMouseDown(e: MouseEvent) {
         if (e.button !== 0) return;
-        pendingDrag = {startX: e.clientX, startY: e.clientY};
+        clearDrag();
+        didDrag = false;
+        if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (
+            (e.target as Element).closest('[role="button"]') !== e.currentTarget
+        )
+            return;
+        pendingDrag = {startX: e.clientX, startY: e.clientY, color};
         window.addEventListener('mousemove', onDragMove);
         window.addEventListener('mouseup', onDragUp);
+        window.addEventListener('blur', clearDrag);
+        window.addEventListener('keydown', onDragKeydown);
     }
 
     function onDragMove(e: MouseEvent) {
-        if (isDragging) {
-            setColorDrag({color, x: e.clientX, y: e.clientY});
+        if (!(e.buttons & 1)) {
+            clearDrag();
             return;
         }
         if (!pendingDrag) return;
+        if (isDragging) {
+            e.preventDefault();
+            setColorDrag({
+                color: pendingDrag.color,
+                x: e.clientX,
+                y: e.clientY,
+            });
+            return;
+        }
         const dx = e.clientX - pendingDrag.startX;
         const dy = e.clientY - pendingDrag.startY;
         if (Math.hypot(dx, dy) >= 4) {
             didDrag = true;
             isDragging = true;
-            setColorDrag({color, x: e.clientX, y: e.clientY});
+            e.preventDefault();
+            setColorDrag({
+                color: pendingDrag.color,
+                x: e.clientX,
+                y: e.clientY,
+            });
         }
     }
 
-    function onDragUp() {
+    function onDragKeydown(e: KeyboardEvent) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            clearDrag();
+        }
+    }
+
+    function onDragUp(e: MouseEvent) {
+        if (e.button === 0) clearDrag();
+    }
+
+    function clearDrag() {
         window.removeEventListener('mousemove', onDragMove);
         window.removeEventListener('mouseup', onDragUp);
+        window.removeEventListener('blur', clearDrag);
+        window.removeEventListener('keydown', onDragKeydown);
+        if (pendingDrag || isDragging) setColorDrag(null);
         pendingDrag = null;
         isDragging = false;
-        setColorDrag(null);
     }
 
     $effect(() => {
-        return () => {
-            window.removeEventListener('mousemove', onDragMove);
-            window.removeEventListener('mouseup', onDragUp);
-        };
+        const _ = color;
+        return clearDrag;
     });
 </script>
 
@@ -179,7 +214,7 @@
     oncontextmenu={handleContextMenu}
     title={`${label}${role ? ` · ${role}` : ''}\n${color}${
         showBadge ? `\nContrast vs BG: ${ratio.toFixed(2)}:1 (${level})` : ''
-    }\nClick edit · Ctrl+click copy · Shift+click select · Right-click for menu\n← → ↑ ↓ navigate · Enter open · L lock · C copy`}
+    }\nClick edit · Ctrl+click copy · Shift+click select · Right-click for menu\nDrag to copy into a template override\n← → ↑ ↓ navigate · Enter open · L lock · C copy`}
 >
     {#if selected}
         <span

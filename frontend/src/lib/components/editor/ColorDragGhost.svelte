@@ -2,9 +2,16 @@
     import {getColorDrag} from '$lib/stores/ui.svelte';
 
     let drag = $derived(getColorDrag());
+    let active = $derived(!!drag);
 
     $effect(() => {
-        document.body.style.cursor = drag ? 'copy' : '';
+        if (!active) return;
+        const previous = document.body.style.cursor;
+        document.body.style.cursor = 'copy';
+        return () => {
+            if (document.body.style.cursor === 'copy')
+                document.body.style.cursor = previous;
+        };
     });
 </script>
 
